@@ -7,12 +7,13 @@ import (
 	"github.com/shirou/gopsutil/load"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
 
-const Version = 0.16
+const Version = 0.17
 const DefaultServer = "127.0.0.1"
 const DefaultPort = "35601"
 const DefaultInterval = 3
@@ -22,10 +23,9 @@ const DefaultProtocol = "ip4"
 const PingPacketHistoryLen = 100
 const TimeOut = time.Second * 3
 
-const ProbePort = 80
-const PingCu = "cu.tz.cloudcpp.com"
-const PingCt = "ct.tz.cloudcpp.com"
-const PingCm = "cm.tz.cloudcpp.com"
+const PingCu = "cu.tz.vizan.cc"
+const PingCt = "ct.tz.vizan.cc"
+const PingCm = "cm.tz.vizan.cc"
 
 type Client struct {
 	Server    string
@@ -52,17 +52,10 @@ func (c *Client) Start() {
 	go c.startRun()
 }
 func (c *Client) startRun() {
-	if c.conn == nil {
-		err := c.connectServer()
-		if err != nil {
-			log.Println(err.Error())
-		} else {
-			defer func(conn net.Conn) {
-				_ = conn.Close()
+	defer func(conn net.Conn) {
+		_ = conn.Close()
 
-			}(c.conn)
-		}
-	}
+	}(c.conn)
 
 	for range time.Tick(time.Second * time.Duration(c.Interval)) {
 		var start = time.Now()
@@ -82,7 +75,7 @@ func (c *Client) startRun() {
 				_ = c.conn.Close()
 				log.Printf("[准备重连]发送失败：%s\n", err.Error())
 
-				if err = c.connectServer(); err != nil {
+				if err = c.Conn(); err != nil {
 
 					log.Printf("服务器重连失败：%s\n", err.Error())
 				}
@@ -92,7 +85,7 @@ func (c *Client) startRun() {
 		}
 	}
 }
-func (c *Client) connectServer() error {
+func (c *Client) Conn() error {
 	var recvData = make([]byte, 128)
 	var addr = fmt.Sprintf("%s:%v", c.Server, c.Port)
 
@@ -163,13 +156,13 @@ func (c *Client) getUpdateInfo() update {
 	c.waitGroup.Add(1)
 	go c.GetNetRate(ret)
 
-	ret.Ping10086 = c.getLostPacket("10086")
-	ret.Ping10010 = c.getLostPacket("10010")
-	ret.Ping189 = c.getLostPacket("189")
+	ret.PingCM = c.getLostPacket("cm")
+	ret.PingCU = c.getLostPacket("cu")
+	ret.PingCT = c.getLostPacket("ct")
 
-	ret.Time10086 = c.getPingTime("10086")
-	ret.Time10010 = c.getPingTime("10010")
-	ret.Time189 = c.getPingTime("189")
+	ret.TimeCM = c.getPingTime("cm")
+	ret.TimeCU = c.getPingTime("cu")
+	ret.TimeCT = c.getPingTime("ct")
 
 	c.waitGroup.Add(1)
 	go c.getDiskIo(ret)
@@ -189,12 +182,13 @@ func (c *Client) getUpdateInfo() update {
 	return *ret
 }
 
-func NewClient(server, username, password, port string, debug bool) (*Client, error) {
+func NewClient(server, username, password, port, interval string, debug bool) (*Client, error) {
 	c := Client{
 		Server:   DefaultServer,
 		Username: DefaultUsername,
 		Password: DefaultPassword,
 		Port:     DefaultPort,
+		Interval: DefaultInterval,
 	}
 
 	if server != "" {
@@ -213,11 +207,19 @@ func NewClient(server, username, password, port string, debug bool) (*Client, er
 
 		c.Port = port
 	}
+	if i, err := strconv.ParseUint(interval, 10, 64); err == nil && i != 0 {
+
+		c.Interval = i
+	}
 
 	c.Debug = debug
 	c.Protocol = DefaultProtocol
-	c.Interval = DefaultInterval
 	c.pingTime = sync.Map{}
+
+	if err := c.Conn(); err != nil {
+
+		return nil, err
+	}
 
 	return &c, nil
 }
