@@ -10,11 +10,3 @@ builds:
     dir: .
     main: ./cmd/client
     binary: client
-
-  - env: [ CGO_ENABLED=0 ]
-    goos: [ android ]
-    goarch: [ arm64-v8a ]
-    id: ServerStatus-Client-arm-v8a
-    dir: .
-    main: ./cmd/client
-    binary: client-arm-v8a
