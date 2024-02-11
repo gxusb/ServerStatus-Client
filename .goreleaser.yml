@@ -10,7 +10,7 @@ builds:
     goarch:
       - amd64
       - arm64
-      - armv8
+      - arm32
     id: "ServerStatus-Client"
     dir: .
     main: ./cmd/client
